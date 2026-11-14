@@ -829,7 +829,203 @@
   <!-- JAVASCRIPT APPLICATION LOGIC                                          -->
   <!-- ===================================================================== -->
   <script>
-// ... existing code ...
+    // =========================================================================
+    // 1. KONFIGURASI SUPABASE & STATE APLIKASI
+    // =========================================================================
+    const DEFAULT_SUPABASE_URL = 'https://kycuqpysihxgcbklzfea.supabase.co';
+    const DEFAULT_SUPABASE_KEY = 'sb_publishable_fknqc8E8oQtBALA7oOnU3Q_hGAFabeu';
+
+    let supabaseClient = null;
+    let isDemoMode = false;
+    let currentUser = null;
+    let currentCategory = 'Semua';
+    let currentAuthTab = 'login';
+    let appliedPromo = null;
+
+    const appState = {
+      products: [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          name: 'Nasi Gudeg Koyor Komplit',
+          description: 'Gudeg nangka muda manis gurih, sambal goreng krecek, opor ayam kampung, telur pindang, dan koyor sapi empuk.',
+          category: 'Makanan',
+          price: 28000,
+          image_url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        },
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Ayam Goreng Kremes Kalasan',
+          description: 'Ayam kampung ungkep rempah kuning digoreng garing dengan taburan kremesan renyah, lalapan segar & sambal terasi.',
+          category: 'Makanan',
+          price: 24000,
+          image_url: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          name: 'Rawon Iga Sapi Kluwek',
+          description: 'Kuah hitam kluwek khas Jawa Timur dengan potongan iga sapi empuk, tauge pendek, telur asin, dan sambal terasi.',
+          category: 'Makanan',
+          price: 32000,
+          image_url: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        },
+        {
+          id: '44444444-4444-4444-4444-444444444444',
+          name: 'Mangut Lele Asap Kemangi',
+          description: 'Lele asap tradisional dimasak dalam kuah santan pedas aromatik daun kemangi dan cabai rawit utuh.',
+          category: 'Makanan',
+          price: 20000,
+          image_url: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        },
+        {
+          id: '55555555-5555-5555-5555-555555555555',
+          name: 'Wedang Uwuh Keraton',
+          description: 'Minuman hangat rempah asli Imogiri: jahe bakar, kayu secang, cengkeh, kayu manis, daun pala & gula batu.',
+          category: 'Minuman',
+          price: 10000,
+          image_url: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        },
+        {
+          id: '66666666-6666-6666-6666-666666666666',
+          name: 'Es Dawet Ayu Banjarnegara',
+          description: 'Cendol pandan hijau alami disajikan dengan kuah santan segar dan sirup gula aren asli.',
+          category: 'Minuman',
+          price: 12000,
+          image_url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=800&q=80',
+          is_available: true
+        }
+      ],
+      promos: [
+        {
+          id: 'promo-1',
+          name: 'Diskon Hangat Pelanggan',
+          code: 'TENTREM10',
+          discount_type: 'percentage',
+          discount_value: 10,
+          min_purchase: 20000,
+          is_active: true,
+          start_at: null,
+          end_at: null
+        },
+        {
+          id: 'promo-2',
+          name: 'Potongan Makan Siang',
+          code: 'HEMAT5000',
+          discount_type: 'fixed',
+          discount_value: 5000,
+          min_purchase: 35000,
+          is_active: true,
+          start_at: null,
+          end_at: null
+        }
+      ],
+      orders: [],
+      cart: []
+    };
+
+    // =========================================================================
+    // 2. INISIALISASI KONEKSI SUPABASE
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      loadCartFromStorage();
+      await initSupabaseConnection();
+      renderPromosStrip();
+      renderMenuGrid();
+      renderCart();
+    });
+
+    async function initSupabaseConnection() {
+      const savedUrl = localStorage.getItem('tentrem_sb_url') || DEFAULT_SUPABASE_URL;
+      const savedKey = localStorage.getItem('tentrem_sb_key') || DEFAULT_SUPABASE_KEY;
+      const forceDemo = localStorage.getItem('tentrem_force_demo') === 'true';
+
+      document.getElementById('sbUrlInput').value = savedUrl;
+      document.getElementById('sbKeyInput').value = savedKey;
+
+      if (forceDemo || !savedUrl || !savedKey || !window.supabase) {
+        enableDemoMode();
+        return;
+      }
+
+      try {
+        supabaseClient = window.supabase.createClient(savedUrl, savedKey);
+        const { data: sessionData, error: sessionErr } = await supabaseClient.auth.getSession();
+        if (sessionErr) throw sessionErr;
+
+        isDemoMode = false;
+        updateConnectionUI(true);
+
+        if (sessionData?.session?.user) {
+          await loadUserProfile(sessionData.session.user);
+        } else {
+          currentUser = null;
+          updateAuthUI();
+        }
+
+        supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+          if (session?.user) {
+            await loadUserProfile(session.user);
+          } else {
+            currentUser = null;
+            updateAuthUI();
+          }
+          await refreshAllData();
+        });
+
+        await refreshAllData();
+      } catch (err) {
+        console.warn('Gagal menghubungkan Supabase, beralih ke Mode Demo:', err.message);
+        enableDemoMode();
+      }
+    }
+
+    function enableDemoMode() {
+      isDemoMode = true;
+      supabaseClient = null;
+      if (!currentUser) {
+        currentUser = {
+          id: 'demo-user-001',
+          email: 'pelanggan@tentrem.id',
+          full_name: 'Tamu Tentrem',
+          role: 'user'
+        };
+      }
+      updateConnectionUI(false);
+      updateAuthUI();
+      renderPromosStrip();
+      renderMenuGrid();
+    }
+
+    function saveSupabaseConfig(event) {
+      event.preventDefault();
+      const url = document.getElementById('sbUrlInput').value.trim();
+      const key = document.getElementById('sbKeyInput').value.trim();
+
+      if (!url || !key) {
+        showToast('URL dan Anon Key wajib diisi.', 'error');
+        return;
+      }
+
+      localStorage.setItem('tentrem_sb_url', url);
+      localStorage.setItem('tentrem_sb_key', key);
+      localStorage.removeItem('tentrem_force_demo');
+      closeModal('supabaseModal');
+      showToast('Menghubungkan ke proyek Supabase...', 'success');
+      initSupabaseConnection();
+    }
+
+    function resetToDemoMode() {
+      localStorage.setItem('tentrem_force_demo', 'true');
+      closeModal('supabaseModal');
+      enableDemoMode();
+      showToast('Beralih ke Mode Simulasi Demo.', 'success');
+    }
+
     function updateConnectionUI(connected) {
       const dot = document.getElementById('connectionDot');
       const label = document.getElementById('connectionLabel');
@@ -848,7 +1044,81 @@
         mobileDemoToggle.classList.remove('hidden');
       }
     }
-// ... existing code ...
+
+    // =========================================================================
+    // 3. SINKRONISASI DATA SUPABASE
+    // =========================================================================
+    async function loadUserProfile(authUser) {
+      if (!supabaseClient || !authUser) return;
+      try {
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+
+        currentUser = {
+          id: authUser.id,
+          email: authUser.email,
+          full_name: profile?.full_name || authUser.user_metadata?.full_name || 'Pelanggan',
+          role: profile?.role || 'user'
+        };
+      } catch (_e) {
+        currentUser = {
+          id: authUser.id,
+          email: authUser.email,
+          full_name: authUser.user_metadata?.full_name || 'Pelanggan',
+          role: 'user'
+        };
+      }
+      updateAuthUI();
+    }
+
+    async function refreshAllData() {
+      if (isDemoMode || !supabaseClient) {
+        renderPromosStrip();
+        renderMenuGrid();
+        if (currentUser?.role === 'admin') renderAdminPanels();
+        return;
+      }
+
+      try {
+        const { data: productsData } = await supabaseClient
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (productsData) {
+          appState.products = productsData;
+        }
+
+        const { data: promosData } = await supabaseClient
+          .from('promos')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (promosData) {
+          appState.promos = promosData;
+        }
+
+        if (currentUser) {
+          const { data: ordersData } = await supabaseClient
+            .from('orders')
+            .select('*, order_items(*)')
+            .order('created_at', { ascending: false });
+          if (ordersData) {
+            appState.orders = ordersData;
+          }
+        }
+      } catch (err) {
+        console.error('Error memuat data:', err);
+      }
+
+      renderPromosStrip();
+      renderMenuGrid();
+      if (currentUser?.role === 'admin') {
+        renderAdminPanels();
+      }
+    }
+
     // =========================================================================
     // 4. RENDER KATALOG MENU & VOUCHER NUSANTARA
     // =========================================================================
@@ -932,7 +1202,6 @@
 
         return `
           <article class="bg-white rounded-[24px] border border-ivory-200 overflow-hidden shadow-bistro hover:shadow-bistro-lg hover:-translate-y-1 transition duration-300 flex flex-col group ${!product.is_available ? 'opacity-75' : ''}">
-            <!-- Image Container -->
             <div class="relative aspect-[4/3] bg-ivory-200 overflow-hidden">
               <img
                 src="${product.image_url || fallbackImg}"
@@ -941,18 +1210,15 @@
                 class="w-full h-full object-cover group-hover:scale-105 transition duration-500 ${!product.is_available ? 'grayscale' : ''}"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-teak-950/35 via-transparent to-transparent opacity-60"></div>
-              <!-- Category Pill -->
               <span class="absolute top-3 left-3 px-3 py-1 rounded-full text-[11px] font-bold bg-ivory-50/95 backdrop-blur-xs text-teak-900 shadow-xs border border-ivory-200">
                 ${escapeHtml(product.category)}
               </span>
-              <!-- Availability Badge -->
               ${product.is_available
                 ? `<span class="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-pandan-700/95 text-ivory-50 shadow-xs">Tersedia</span>`
                 : `<span class="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-teak-900 text-ivory-200 shadow-xs">Habis</span>`
               }
             </div>
 
-            <!-- Content -->
             <div class="p-5 flex-1 flex flex-col justify-between gap-4">
               <div>
                 <h3 class="font-editorial font-bold text-xl text-teak-900 leading-snug group-hover:text-terracotta-600 transition">
@@ -994,7 +1260,136 @@
 
       lucide.createIcons();
     }
-// ... existing code ...
+
+    // =========================================================================
+    // 5. KERANJANG & CHECKOUT
+    // =========================================================================
+    function loadCartFromStorage() {
+      try {
+        const saved = localStorage.getItem('tentrem_cart');
+        if (saved) appState.cart = JSON.parse(saved);
+      } catch (_e) {
+        appState.cart = [];
+      }
+    }
+
+    function saveCartToStorage() {
+      localStorage.setItem('tentrem_cart', JSON.stringify(appState.cart));
+    }
+
+    function addToCart(productId) {
+      const product = appState.products.find(p => p.id === productId);
+      if (!product || !product.is_available) return;
+
+      const existing = appState.cart.find(c => c.product_id === productId);
+      if (existing) {
+        if (existing.quantity >= 50) {
+          showToast('Maksimal 50 porsi per item.', 'error');
+          return;
+        }
+        existing.quantity += 1;
+      } else {
+        appState.cart.push({ product_id: productId, quantity: 1 });
+      }
+
+      saveCartToStorage();
+      renderMenuGrid();
+      renderCart();
+      showToast(`${product.name} ditambahkan ke keranjang.`, 'success');
+    }
+
+    function updateCartQty(productId, delta) {
+      const idx = appState.cart.findIndex(c => c.product_id === productId);
+      if (idx === -1) return;
+
+      const newQty = appState.cart[idx].quantity + delta;
+      if (newQty <= 0) {
+        appState.cart.splice(idx, 1);
+      } else if (newQty <= 50) {
+        appState.cart[idx].quantity = newQty;
+      }
+
+      saveCartToStorage();
+      renderMenuGrid();
+      renderCart();
+    }
+
+    function calculateCartTotals() {
+      let subtotal = 0;
+      appState.cart.forEach(item => {
+        const product = appState.products.find(p => p.id === item.product_id);
+        if (product) {
+          subtotal += product.price * item.quantity;
+        }
+      });
+
+      let discount = 0;
+      if (appliedPromo && subtotal >= appliedPromo.min_purchase) {
+        if (appliedPromo.discount_type === 'percentage') {
+          discount = Math.floor(subtotal * Math.min(appliedPromo.discount_value, 100) / 100);
+        } else {
+          discount = Math.min(subtotal, appliedPromo.discount_value);
+        }
+      }
+
+      const total = Math.max(0, subtotal - discount);
+      return { subtotal, discount, total };
+    }
+
+    function renderCart() {
+      const badge = document.getElementById('cartBadge');
+      const container = document.getElementById('cartItemsContainer');
+      const formSec = document.getElementById('checkoutFormSection');
+
+      const totalItems = appState.cart.reduce((sum, item) => sum + item.quantity, 0);
+      badge.textContent = totalItems;
+
+      if (appState.cart.length === 0) {
+        formSec.classList.add('hidden');
+        container.innerHTML = `
+          <div class="text-center py-12 space-y-3">
+            <div class="w-14 h-14 rounded-2xl bg-ivory-200 text-teak-700/50 flex items-center justify-center mx-auto">
+              <i data-lucide="shopping-bag" class="w-7 h-7"></i>
+            </div>
+            <h4 class="font-editorial font-bold text-2xl text-teak-900">Keranjang Masih Kosong</h4>
+            <p class="text-xs text-teak-700/70 max-w-xs mx-auto">Pilih hidangan tradisional favorit Anda dari daftar menu untuk mulai memesan.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      formSec.classList.remove('hidden');
+      container.innerHTML = appState.cart.map(item => {
+        const product = appState.products.find(p => p.id === item.product_id);
+        if (!product) return '';
+        return `
+          <div class="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-ivory-200 shadow-xs">
+            <div class="min-w-0 flex-1">
+              <h4 class="font-bold text-sm text-teak-900 truncate">${escapeHtml(product.name)}</h4>
+              <span class="text-xs text-terracotta-600 font-semibold">${formatRupiah(product.price)} / porsi</span>
+            </div>
+            <div class="flex items-center gap-2 bg-ivory-100 border border-ivory-200 rounded-xl p-1 shrink-0">
+              <button type="button" onclick="updateCartQty('${product.id}', -1)" class="w-7 h-7 rounded-lg bg-white hover:bg-teak-900 hover:text-ivory-50 font-bold text-xs flex items-center justify-center transition">-</button>
+              <span class="text-xs font-bold w-5 text-center">${item.quantity}</span>
+              <button type="button" onclick="updateCartQty('${product.id}', 1)" class="w-7 h-7 rounded-lg bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 font-bold text-xs flex items-center justify-center transition">+</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const { subtotal, discount, total } = calculateCartTotals();
+      document.getElementById('summarySubtotal').textContent = formatRupiah(subtotal);
+      document.getElementById('summaryDiscount').textContent = `- ${formatRupiah(discount)}`;
+      document.getElementById('summaryTotal').textContent = formatRupiah(total);
+
+      if (currentUser && !document.getElementById('custNameInput').value && currentUser.full_name !== 'Tamu Tentrem') {
+        document.getElementById('custNameInput').value = currentUser.full_name;
+      }
+
+      lucide.createIcons();
+    }
+
     function applyPromoCode() {
       const codeInput = document.getElementById('checkoutPromoInput').value.trim().toUpperCase();
       const feedback = document.getElementById('promoFeedbackMsg');
@@ -1060,7 +1455,139 @@
         }
       });
     }
-// ... existing code ...
+
+    async function handleCheckoutSubmit(event) {
+      event.preventDefault();
+      if (!currentUser) {
+        showToast('Silakan masuk akun terlebih dahulu sebelum checkout.', 'error');
+        toggleCartDrawer(false);
+        openAuthModal('login');
+        return;
+      }
+
+      const customerName = document.getElementById('custNameInput').value.trim();
+      const phone = document.getElementById('custPhoneInput').value.trim();
+      const address = document.getElementById('custAddressInput').value.trim();
+      const notes = document.getElementById('custNotesInput').value.trim();
+      const paymentMethod = document.getElementById('paymentMethodInput').value;
+      const deliveryMethod = document.getElementById('deliveryMethodInput').value;
+      const promoCode = appliedPromo ? appliedPromo.code : null;
+
+      const submitBtn = document.getElementById('submitCheckoutBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Mengirim ke Dapur...</span>';
+
+      try {
+        if (isDemoMode || !supabaseClient) {
+          const { subtotal, discount, total } = calculateCartTotals();
+          const newOrderId = appState.orders.length + 101;
+          const orderItems = appState.cart.map(c => {
+            const p = appState.products.find(prod => prod.id === c.product_id);
+            return {
+              product_id: p.id,
+              product_name: p.name,
+              quantity: c.quantity,
+              unit_price: p.price
+            };
+          });
+
+          appState.orders.unshift({
+            id: newOrderId,
+            user_id: currentUser.id,
+            customer_name: customerName,
+            phone,
+            address,
+            notes,
+            payment_method: paymentMethod,
+            delivery_method: deliveryMethod,
+            subtotal,
+            discount,
+            delivery_fee: 0,
+            total,
+            promo_code: promoCode,
+            order_status: 'Menunggu',
+            payment_status: 'Menunggu',
+            created_at: new Date().toISOString(),
+            order_items: orderItems
+          });
+
+          appState.cart = [];
+          appliedPromo = null;
+          saveCartToStorage();
+          renderMenuGrid();
+          renderCart();
+          toggleCartDrawer(false);
+          showToast(`Pesanan #${newOrderId} berhasil dibuat!`, 'success');
+          openOrdersModal();
+        } else {
+          const itemsPayload = appState.cart.map(c => ({
+            product_id: c.product_id,
+            quantity: c.quantity
+          }));
+
+          const { data: orderId, error } = await supabaseClient.rpc('checkout_order', {
+            p_items: itemsPayload,
+            p_customer_name: customerName,
+            p_phone: phone,
+            p_address: address,
+            p_notes: notes || null,
+            p_payment_method: paymentMethod,
+            p_delivery_method: deliveryMethod,
+            p_promo_code: promoCode
+          });
+
+          if (error) throw error;
+
+          appState.cart = [];
+          appliedPromo = null;
+          saveCartToStorage();
+          await refreshAllData();
+          renderCart();
+          toggleCartDrawer(false);
+          showToast(`Pesanan #${orderId} berhasil diterima dapur!`, 'success');
+          openOrdersModal();
+        }
+      } catch (err) {
+        showToast(err.message || 'Gagal memproses pesanan.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4 text-brass-400"></i><span>Kirim Pesanan ke Dapur</span>';
+        lucide.createIcons();
+      }
+    }
+
+    function toggleCartDrawer(open) {
+      const overlay = document.getElementById('cartDrawerOverlay');
+      if (open) {
+        renderCart();
+        overlay.classList.remove('hidden');
+      } else {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    // =========================================================================
+    // 6. AUTENTIKASI & RIWAYAT PESANAN
+    // =========================================================================
+    function updateAuthUI() {
+      const authArea = document.getElementById('authArea');
+      const navAdminBtn = document.getElementById('navAdminBtn');
+      const mobileAdminBtn = document.getElementById('mobileAdminBtn');
+      const demoRoleText = document.getElementById('demoRoleText');
+      const mobileDemoRoleText = document.getElementById('mobileDemoRoleText');
+
+      const isAdmin = currentUser?.role === 'admin';
+      if (isAdmin) {
+        navAdminBtn.classList.remove('hidden');
+        mobileAdminBtn.classList.remove('hidden');
+      } else {
+        navAdminBtn.classList.add('hidden');
+        mobileAdminBtn.classList.add('hidden');
+      }
+
+      if (demoRoleText) demoRoleText.textContent = isAdmin ? 'Mode: Admin' : 'Mode: Pelanggan';
+      if (mobileDemoRoleText) mobileDemoRoleText.textContent = isAdmin ? 'Demo: Admin' : 'Demo: User';
+
       if (!currentUser) {
         authArea.innerHTML = `
           <button onclick="openAuthModal('login')" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-teak-900 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 transition">
@@ -1089,7 +1616,25 @@
       }
       lucide.createIcons();
     }
-// ... existing code ...
+
+    function toggleDemoAdminRole() {
+      if (!isDemoMode) return;
+      currentUser.role = currentUser.role === 'admin' ? 'user' : 'admin';
+      currentUser.full_name = currentUser.role === 'admin' ? 'Admin Tentrem' : 'Tamu Tentrem';
+      updateAuthUI();
+      if (currentUser.role === 'admin') {
+        showToast('Beralih ke peran Admin (Demo). Studio Admin kini aktif!', 'success');
+      } else {
+        switchView('store');
+        showToast('Beralih ke peran Pelanggan (Demo).', 'success');
+      }
+    }
+
+    function openAuthModal(tab = 'login') {
+      switchAuthTab(tab);
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+
     function switchAuthTab(tab) {
       currentAuthTab = tab;
       const loginBtn = document.getElementById('tabLoginBtn');
@@ -1114,7 +1659,57 @@
         submitBtn.textContent = 'Buat Akun Baru';
       }
     }
-// ... existing code ...
+
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const fullName = document.getElementById('authFullName').value.trim();
+
+      if (isDemoMode || !supabaseClient) {
+        currentUser = {
+          id: 'demo-user-001',
+          email,
+          full_name: fullName || email.split('@')[0],
+          role: 'user'
+        };
+        updateAuthUI();
+        closeModal('authModal');
+        showToast(`Selamat datang, ${currentUser.full_name}!`, 'success');
+        return;
+      }
+
+      try {
+        if (currentAuthTab === 'login') {
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          closeModal('authModal');
+          showToast('Berhasil masuk ke akun Anda.', 'success');
+        } else {
+          const { error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: fullName || 'Pelanggan' } }
+          });
+          if (error) throw error;
+          closeModal('authModal');
+          showToast('Pendaftaran berhasil! Silakan periksa email atau langsung masuk.', 'success');
+        }
+      } catch (err) {
+        showToast(err.message || 'Terjadi kesalahan autentikasi.', 'error');
+      }
+    }
+
+    async function handleLogout() {
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+      currentUser = null;
+      updateAuthUI();
+      switchView('store');
+      showToast('Anda telah keluar dari akun.', 'success');
+    }
+
     function openOrdersModal() {
       if (!currentUser) {
         showToast('Silakan masuk terlebih dahulu untuk melihat riwayat pesanan.', 'error');
@@ -1151,10 +1746,8 @@
                 </div>
               </div>
 
-              <!-- Visual Status Stepper -->
               ${renderOrderStepper(order.order_status)}
 
-              <!-- Rincian Menu -->
               <div class="space-y-1.5 text-xs pt-1">
                 ${items.map(it => `
                   <div class="flex justify-between text-teak-800">
@@ -1249,7 +1842,411 @@
         }
       });
     }
-// ... existing code ...
+
+    function renderAdminPanels() {
+      renderAdminOrders();
+      renderAdminProducts();
+      renderAdminPromos();
+    }
+
+    function renderAdminOrders() {
+      const list = document.getElementById('adminOrdersList');
+      const countBadge = document.getElementById('adminOrderCountBadge');
+      countBadge.textContent = appState.orders.length;
+
+      if (appState.orders.length === 0) {
+        list.innerHTML = `<div class="bg-white border border-ivory-200 rounded-2xl p-8 text-center text-sm text-teak-700/70">Belum ada pesanan masuk.</div>`;
+        return;
+      }
+
+      list.innerHTML = appState.orders.map(order => {
+        const items = order.order_items || [];
+        return `
+          <div class="bg-white border border-ivory-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ivory-100 pb-3">
+              <div>
+                <span class="font-mono font-bold text-base text-teak-900">Order #${order.id}</span>
+                <span class="text-xs text-teak-700/60 ml-2">${formatDate(order.created_at)}</span>
+                <p class="text-xs text-teak-800 mt-0.5"><strong>${escapeHtml(order.customer_name)}</strong> &bull; ${escapeHtml(order.phone)}</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <select onchange="updateOrderStatus(${order.id}, 'order_status', this.value)" class="px-3 py-1.5 rounded-xl border border-ivory-300 text-xs font-bold bg-ivory-50">
+                  ${['Menunggu', 'Diproses', 'Dikirim', 'Selesai', 'Dibatalkan'].map(st =>
+                    `<option value="${st}" ${order.order_status === st ? 'selected' : ''}>Status: ${st}</option>`
+                  ).join('')}
+                </select>
+                <select onchange="updateOrderStatus(${order.id}, 'payment_status', this.value)" class="px-3 py-1.5 rounded-xl border border-ivory-300 text-xs font-bold bg-ivory-50">
+                  ${['Menunggu', 'Dibayar', 'Gagal'].map(pst =>
+                    `<option value="${pst}" ${order.payment_status === pst ? 'selected' : ''}>Bayar: ${pst}</option>`
+                  ).join('')}
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="space-y-1">
+                ${items.map(it => `
+                  <div class="flex justify-between">
+                    <span>${it.quantity}x ${escapeHtml(it.product_name)}</span>
+                    <span class="font-semibold">${formatRupiah(it.unit_price * it.quantity)}</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="bg-ivory-100 p-3 rounded-xl space-y-1">
+                <p><strong>Pengiriman:</strong> ${escapeHtml(order.delivery_method)} (${escapeHtml(order.payment_method)})</p>
+                <p><strong>Alamat:</strong> ${escapeHtml(order.address)}</p>
+                ${order.notes ? `<p><strong>Catatan:</strong> ${escapeHtml(order.notes)}</p>` : ''}
+                <p class="font-bold text-terracotta-600 pt-1">Total: ${formatRupiah(order.total)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function updateOrderStatus(orderId, field, value) {
+      if (isDemoMode || !supabaseClient) {
+        const ord = appState.orders.find(o => o.id === orderId);
+        if (ord) ord[field] = value;
+        showToast(`Order #${orderId} diperbarui menjadi ${value}.`, 'success');
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('orders')
+          .update({ [field]: value })
+          .eq('id', orderId);
+        if (error) throw error;
+        await refreshAllData();
+        showToast(`Order #${orderId} berhasil diperbarui.`, 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal memperbarui status pesanan.', 'error');
+      }
+    }
+
+    function renderAdminProducts() {
+      const list = document.getElementById('adminProductsList');
+      list.innerHTML = appState.products.map(p => `
+        <div class="bg-white border border-ivory-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3">
+          <div class="flex gap-3">
+            <img src="${p.image_url || 'https://placehold.co/200x150/1F1712/C5934B?text=Menu'}" class="w-20 h-20 rounded-xl object-cover shrink-0 bg-ivory-200" />
+            <div class="min-w-0 flex-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-pandan-700">${escapeHtml(p.category)}</span>
+              <h4 class="font-bold text-sm text-teak-900 truncate">${escapeHtml(p.name)}</h4>
+              <p class="font-bold text-terracotta-600 text-sm mt-0.5">${formatRupiah(p.price)}</p>
+              <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${p.is_available ? 'bg-pandan-700/15 text-pandan-800' : 'bg-red-100 text-red-700'}">
+                ${p.is_available ? 'Tersedia' : 'Habis'}
+              </span>
+            </div>
+          </div>
+          <div class="flex gap-2 pt-2 border-t border-ivory-100">
+            <button onclick="openProductFormModal('${p.id}')" class="flex-1 py-1.5 rounded-xl bg-ivory-100 hover:bg-ivory-200 text-teak-900 text-xs font-bold transition">Edit</button>
+            <button onclick="handleDeleteProduct('${p.id}')" class="py-1.5 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition">Hapus</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openProductFormModal(productId = null) {
+      const title = document.getElementById('productFormTitle');
+      document.getElementById('adminProductForm').reset();
+      document.getElementById('prodIdInput').value = '';
+
+      if (productId) {
+        const p = appState.products.find(item => item.id === productId);
+        if (p) {
+          title.textContent = 'Edit Menu';
+          document.getElementById('prodIdInput').value = p.id;
+          document.getElementById('prodNameInput').value = p.name;
+          document.getElementById('prodCategoryInput').value = p.category;
+          document.getElementById('prodPriceInput').value = p.price;
+          document.getElementById('prodDescInput').value = p.description || '';
+          document.getElementById('prodImageUrlInput').value = p.image_url || '';
+          document.getElementById('prodAvailableInput').checked = p.is_available;
+        }
+      } else {
+        title.textContent = 'Tambah Menu Baru';
+      }
+
+      document.getElementById('productFormModal').classList.remove('hidden');
+    }
+
+    async function handleSaveProduct(event) {
+      event.preventDefault();
+      const id = document.getElementById('prodIdInput').value;
+      const name = document.getElementById('prodNameInput').value.trim();
+      const category = document.getElementById('prodCategoryInput').value;
+      const price = parseInt(document.getElementById('prodPriceInput').value, 10) || 0;
+      const description = document.getElementById('prodDescInput').value.trim();
+      let imageUrl = document.getElementById('prodImageUrlInput').value.trim();
+      const isAvailable = document.getElementById('prodAvailableInput').checked;
+      const fileInput = document.getElementById('prodImageFileInput');
+
+      if (isDemoMode || !supabaseClient) {
+        if (id) {
+          const idx = appState.products.findIndex(p => p.id === id);
+          if (idx !== -1) {
+            appState.products[idx] = { ...appState.products[idx], name, category, price, description, image_url: imageUrl, is_available: isAvailable };
+          }
+        } else {
+          appState.products.unshift({
+            id: 'demo-' + Date.now(),
+            name,
+            category,
+            price,
+            description,
+            image_url: imageUrl,
+            is_available: isAvailable
+          });
+        }
+        closeModal('productFormModal');
+        renderMenuGrid();
+        renderAdminProducts();
+        showToast('Menu berhasil disimpan (Demo).', 'success');
+        return;
+      }
+
+      try {
+        if (fileInput.files && fileInput.files[0]) {
+          const file = fileInput.files[0];
+          const ext = file.name.split('.').pop();
+          const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadErr } = await supabaseClient.storage
+            .from('menu-images')
+            .upload(filePath, file);
+          if (uploadErr) throw uploadErr;
+
+          const { data: pubData } = supabaseClient.storage
+            .from('menu-images')
+            .getPublicUrl(filePath);
+          imageUrl = pubData.publicUrl;
+        }
+
+        const payload = {
+          name,
+          category,
+          price,
+          description,
+          image_url: imageUrl || null,
+          is_available: isAvailable
+        };
+
+        if (id) {
+          const { error } = await supabaseClient.from('products').update(payload).eq('id', id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabaseClient.from('products').insert(payload);
+          if (error) throw error;
+        }
+
+        closeModal('productFormModal');
+        await refreshAllData();
+        showToast('Data menu berhasil disimpan ke Supabase!', 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal menyimpan menu.', 'error');
+      }
+    }
+
+    async function handleDeleteProduct(productId) {
+      if (isDemoMode || !supabaseClient) {
+        appState.products = appState.products.filter(p => p.id !== productId);
+        renderMenuGrid();
+        renderAdminProducts();
+        showToast('Menu dihapus (Demo).', 'success');
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient.from('products').delete().eq('id', productId);
+        if (error) throw error;
+        await refreshAllData();
+        showToast('Menu berhasil dihapus.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal menghapus menu.', 'error');
+      }
+    }
+
+    function renderAdminPromos() {
+      const list = document.getElementById('adminPromosList');
+      if (appState.promos.length === 0) {
+        list.innerHTML = `<div class="bg-white border border-ivory-200 rounded-2xl p-6 text-center text-xs text-teak-700/70">Belum ada voucher promo.</div>`;
+        return;
+      }
+
+      list.innerHTML = appState.promos.map(p => `
+        <div class="bg-white border border-ivory-200 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-sm px-2.5 py-0.5 rounded-lg bg-brass-500/15 text-teak-900 border border-brass-500/30">${escapeHtml(p.code)}</span>
+              <span class="font-bold text-sm text-teak-900">${escapeHtml(p.name)}</span>
+            </div>
+            <p class="text-xs text-teak-700/75 mt-1">
+              Diskon: ${p.discount_type === 'percentage' ? p.discount_value + '%' : formatRupiah(p.discount_value)} &bull; Min. Belanja: ${formatRupiah(p.min_purchase)}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="togglePromoStatus('${p.id}', ${!p.is_active})" class="px-3 py-1.5 rounded-xl text-xs font-bold ${p.is_active ? 'bg-pandan-700/15 text-pandan-800' : 'bg-ivory-200 text-teak-700'}">
+              ${p.is_active ? 'Aktif' : 'Nonaktif'}
+            </button>
+            <button onclick="deletePromo('${p.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-50 text-red-700 hover:bg-red-100">Hapus</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function handleCreatePromo(event) {
+      event.preventDefault();
+      const name = document.getElementById('promoNameInput').value.trim();
+      const code = document.getElementById('promoCodeInput').value.trim().toUpperCase();
+      const discount_type = document.getElementById('promoTypeInput').value;
+      const discount_value = parseInt(document.getElementById('promoValueInput').value, 10);
+      const min_purchase = parseInt(document.getElementById('promoMinInput').value, 10) || 0;
+
+      if (isDemoMode || !supabaseClient) {
+        appState.promos.unshift({
+          id: 'promo-' + Date.now(),
+          name,
+          code,
+          discount_type,
+          discount_value,
+          min_purchase,
+          is_active: true
+        });
+        document.getElementById('adminPromoForm').reset();
+        renderPromosStrip();
+        renderAdminPromos();
+        showToast('Voucher promo dibuat (Demo).', 'success');
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient.from('promos').insert({
+          name,
+          code,
+          discount_type,
+          discount_value,
+          min_purchase,
+          is_active: true
+        });
+        if (error) throw error;
+        document.getElementById('adminPromoForm').reset();
+        await refreshAllData();
+        showToast('Voucher promo berhasil disimpan!', 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal membuat voucher promo.', 'error');
+      }
+    }
+
+    async function togglePromoStatus(promoId, nextState) {
+      if (isDemoMode || !supabaseClient) {
+        const p = appState.promos.find(item => item.id === promoId);
+        if (p) p.is_active = nextState;
+        renderPromosStrip();
+        renderAdminPromos();
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient.from('promos').update({ is_active: nextState }).eq('id', promoId);
+        if (error) throw error;
+        await refreshAllData();
+      } catch (err) {
+        showToast(err.message || 'Gagal mengubah status promo.', 'error');
+      }
+    }
+
+    async function deletePromo(promoId) {
+      if (isDemoMode || !supabaseClient) {
+        appState.promos = appState.promos.filter(p => p.id !== promoId);
+        renderPromosStrip();
+        renderAdminPromos();
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient.from('promos').delete().eq('id', promoId);
+        if (error) throw error;
+        await refreshAllData();
+        showToast('Voucher promo dihapus.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal menghapus promo.', 'error');
+      }
+    }
+
+    // =========================================================================
+    // 8. UTILITAS & HELPER UI
+    // =========================================================================
+    function formatRupiah(amount) {
+      return 'Rp ' + Number(amount || 0).toLocaleString('id-ID');
+    }
+
+    function formatDate(isoString) {
+      if (!isoString) return '';
+      const d = new Date(isoString);
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function capitalize(str) {
+      return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+    }
+
+    function renderStatusBadge(status, type) {
+      let cls = 'bg-ivory-200 text-teak-800';
+      if (type === 'order') {
+        if (status === 'Selesai') cls = 'bg-pandan-700/15 text-pandan-800';
+        else if (status === 'Diproses' || status === 'Dikirim') cls = 'bg-brass-500/20 text-teak-900';
+        else if (status === 'Dibatalkan') cls = 'bg-red-100 text-red-700';
+      } else {
+        if (status === 'Dibayar') cls = 'bg-pandan-700/15 text-pandan-800';
+        else if (status === 'Gagal') cls = 'bg-red-100 text-red-700';
+      }
+      return `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${cls}">${escapeHtml(status)}</span>`;
+    }
+
+    function openSupabaseModal() {
+      document.getElementById('supabaseModal').classList.remove('hidden');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    function copyPromoHighlight() {
+      copyText('TENTREM10');
+    }
+
+    function copyText(text) {
+      const tempInput = document.createElement('input');
+      tempInput.value = text;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast(`Kode voucher "${text}" berhasil disalin!`, 'success');
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const isError = type === 'error';
+      const toast = document.createElement('div');
+
       toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-2xl shadow-bistro-lg border text-xs sm:text-sm font-semibold transition-all duration-300 transform translate-y-2 opacity-0 ${
         isError
           ? 'bg-red-950 text-red-100 border-red-800'
@@ -1260,4 +2257,19 @@
         <i data-lucide="${isError ? 'alert-circle' : 'check-circle-2'}" class="w-4 h-4 shrink-0 ${isError ? 'text-red-400' : 'text-brass-400'}"></i>
         <span class="flex-1">${escapeHtml(message)}</span>
       `;
-// ... existing code ...
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
