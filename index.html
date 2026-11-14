@@ -575,12 +575,12 @@
           <h3 id="authModalTitle" class="font-editorial font-bold text-2xl text-teak-900">Masuk atau Daftar Akun</h3>
           <p id="authModalSubtitle" class="text-xs text-teak-700/75 mt-0.5">Pelanggan wajib mendaftar/masuk akun untuk memesan sajian</p>
         </div>
-        <button onclick="closeModal('authModal')" class="p-1.5 rounded-lg hover:bg-ivory-200 text-teak-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <button type="button" onclick="closeModal('authModal')" class="p-1.5 rounded-lg hover:bg-ivory-200 text-teak-700"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
       <div class="grid grid-cols-2 bg-ivory-100 p-1 rounded-xl border border-ivory-200">
-        <button type="button" id="tabLoginBtn" onclick="switchAuthTab('login')" class="py-2 rounded-lg text-xs font-bold bg-teak-900 text-ivory-50 transition">Masuk</button>
-        <button type="button" id="tabRegisterBtn" onclick="switchAuthTab('register')" class="py-2 rounded-lg text-xs font-bold text-teak-700 transition">Daftar Akun Baru</button>
+        <button type="button" id="tabLoginBtn" onclick="switchAuthTab('login')" class="py-2 rounded-lg text-xs font-bold bg-teak-900 text-ivory-50 transition cursor-pointer">Masuk</button>
+        <button type="button" id="tabRegisterBtn" onclick="switchAuthTab('register')" class="py-2 rounded-lg text-xs font-bold text-teak-700 transition cursor-pointer">Daftar Akun Baru</button>
       </div>
 
       <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3.5">
@@ -596,7 +596,7 @@
           <label class="block text-xs font-bold text-teak-800 mb-1">Kata Sandi *</label>
           <input type="password" id="authPassword" required minlength="6" placeholder="Minimal 6 karakter" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600" />
         </div>
-        <button type="submit" id="authSubmitBtn" class="w-full py-3 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 font-bold text-sm shadow-bistro transition">Masuk Sekarang</button>
+        <button type="submit" id="authSubmitBtn" class="w-full py-3 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 font-bold text-sm shadow-bistro transition cursor-pointer">Masuk Sekarang</button>
       </form>
     </div>
   </div>
@@ -1468,7 +1468,7 @@
     }
 
     async function handleAuthSubmit(event) {
-      event.preventDefault();
+      if (event) event.preventDefault();
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
       const fullName = document.getElementById('authFullName').value.trim();
