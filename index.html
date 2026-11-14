@@ -414,12 +414,18 @@
 
     <!-- ADMIN TAB 1: KELOLA PESANAN -->
     <div id="adminOrdersSection" class="space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="font-editorial text-2xl font-bold text-teak-900">Daftar Pesanan Masuk</h2>
-        <button onclick="refreshAllData()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-ivory-100 hover:bg-ivory-200 text-teak-800 border border-ivory-300 transition">
-          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-          <span>Muat Ulang</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="openManualOrderModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 shadow-xs transition">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>Tambah Pesanan Manual</span>
+          </button>
+          <button onclick="refreshAllData()" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-ivory-100 hover:bg-ivory-200 text-teak-800 border border-ivory-300 transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Muat Ulang</span>
+          </button>
+        </div>
       </div>
       <div id="adminOrdersList" class="grid grid-cols-1 gap-4">
         <!-- Diisi oleh JS -->
@@ -820,6 +826,83 @@
 
         <button type="submit" id="saveProductBtn" class="w-full py-3 rounded-xl bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 font-bold text-sm transition">
           Simpan Menu
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 5: TAMBAH PESANAN MANUAL OLEH ADMIN                             -->
+  <!-- ===================================================================== -->
+  <div id="manualOrderModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div onclick="closeModal('manualOrderModal')" class="fixed inset-0 bg-teak-950/60 backdrop-blur-xs"></div>
+    <div class="bg-ivory-50 border border-ivory-200 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 relative z-10 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-terracotta-600/15 text-terracotta-600 flex items-center justify-center">
+            <i data-lucide="clipboard-plus" class="w-5 h-5"></i>
+          </div>
+          <h3 class="font-editorial font-bold text-2xl text-teak-900">Tambah Pesanan Manual</h3>
+        </div>
+        <button onclick="closeModal('manualOrderModal')" class="p-1.5 rounded-lg hover:bg-ivory-200 text-teak-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="manualOrderForm" onsubmit="handleManualOrderSubmit(event)" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-teak-800 mb-1">Nama Pelanggan *</label>
+            <input type="text" id="mCustName" required placeholder="Contoh: Bu Siti" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-teak-800 mb-1">No. WhatsApp / HP *</label>
+            <input type="tel" id="mCustPhone" required placeholder="0812xxxxxxxx" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-teak-800 mb-1">Metode Pesanan</label>
+            <select id="mDeliveryMethod" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600">
+              <option value="Ambil sendiri">Ambil Sendiri / Dine-in</option>
+              <option value="Delivery">Delivery (Diantar)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-teak-800 mb-1">Metode Pembayaran</label>
+            <select id="mPaymentMethod" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600">
+              <option value="COD">COD (Bayar di Tempat)</option>
+              <option value="QRIS">QRIS</option>
+              <option value="Transfer Bank">Transfer Bank</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-teak-800 mb-1">Alamat atau Meja *</label>
+          <input type="text" id="mCustAddress" required placeholder="Contoh: Meja Nomor 4 atau Jl. Kaliurang Km 5" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600" />
+        </div>
+
+        <!-- Pilih Menu Pesanan -->
+        <div class="bg-ivory-100 p-4 rounded-2xl border border-ivory-200 space-y-3">
+          <label class="block text-xs font-bold text-teak-900">Pilih Menu & Jumlah Porsi</label>
+          <div id="manualOrderItemsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <!-- Diisi JS -->
+          </div>
+          <button type="button" onclick="addManualOrderItemRow()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-ivory-200 text-teak-900 border border-ivory-300 text-xs font-bold transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Tambah Item Menu Lain</span>
+          </button>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-teak-800 mb-1">Catatan Dapur (Opsional)</label>
+          <input type="text" id="mNotes" placeholder="Contoh: Kuah dipisah" class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-ivory-300 text-sm focus:outline-none focus:border-terracotta-600" />
+        </div>
+
+        <button type="submit" class="w-full py-3.5 rounded-2xl bg-terracotta-600 hover:bg-terracotta-700 text-ivory-50 font-bold text-sm shadow-bistro transition">
+          Simpan & Catat Pesanan
         </button>
       </form>
     </div>
@@ -2171,6 +2254,132 @@
         showToast('Voucher promo dihapus.', 'success');
       } catch (err) {
         showToast(err.message || 'Gagal menghapus promo.', 'error');
+      }
+    }
+
+    // =========================================================================
+    // 7.B. FITUR TAMBAH PESANAN MANUAL (ADMIN)
+    // =========================================================================
+    function openManualOrderModal() {
+      document.getElementById('manualOrderForm').reset();
+      const container = document.getElementById('manualOrderItemsContainer');
+      container.innerHTML = '';
+      addManualOrderItemRow();
+      document.getElementById('manualOrderModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function addManualOrderItemRow() {
+      const container = document.getElementById('manualOrderItemsContainer');
+      const rowId = 'm-row-' + Date.now() + Math.random().toString(36).slice(2, 5);
+
+      const availableProducts = appState.products.filter(p => p.is_available);
+      if (availableProducts.length === 0) {
+        showToast('Tidak ada menu tersedia saat ini.', 'error');
+        return;
+      }
+
+      const rowDiv = document.createElement('div');
+      rowDiv.id = rowId;
+      rowDiv.className = 'flex items-center gap-2 bg-white p-2.5 rounded-xl border border-ivory-200';
+      rowDiv.innerHTML = `
+        <select class="manual-item-select flex-1 px-3 py-2 rounded-lg bg-ivory-50 border border-ivory-300 text-xs text-teak-900 focus:outline-none">
+          ${availableProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${formatRupiah(p.price)})</option>`).join('')}
+        </select>
+        <input type="number" min="1" max="50" value="1" class="manual-item-qty w-16 px-2.5 py-2 rounded-lg bg-ivory-50 border border-ivory-300 text-xs font-bold text-center focus:outline-none" />
+        <button type="button" onclick="document.getElementById('${rowId}').remove()" class="p-2 rounded-lg text-red-600 hover:bg-red-50 transition">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      `;
+      container.appendChild(rowDiv);
+      lucide.createIcons();
+    }
+
+    async function handleManualOrderSubmit(event) {
+      event.preventDefault();
+      const customer_name = document.getElementById('mCustName').value.trim();
+      const phone = document.getElementById('mCustPhone').value.trim();
+      const address = document.getElementById('mCustAddress').value.trim();
+      const delivery_method = document.getElementById('mDeliveryMethod').value;
+      const payment_method = document.getElementById('mPaymentMethod').value;
+      const notes = document.getElementById('mNotes').value.trim();
+
+      const rows = document.querySelectorAll('#manualOrderItemsContainer > div');
+      if (rows.length === 0) {
+        showToast('Tambahkan minimal 1 item menu.', 'error');
+        return;
+      }
+
+      const itemsPayload = [];
+      let subtotal = 0;
+      const orderItemsSummary = [];
+
+      rows.forEach(row => {
+        const prodId = row.querySelector('.manual-item-select').value;
+        const qty = parseInt(row.querySelector('.manual-item-qty').value, 10) || 1;
+        const prod = appState.products.find(p => p.id === prodId);
+        if (prod) {
+          itemsPayload.push({ product_id: prod.id, quantity: qty });
+          subtotal += prod.price * qty;
+          orderItemsSummary.push({
+            product_id: prod.id,
+            product_name: prod.name,
+            quantity: qty,
+            unit_price: prod.price
+          });
+        }
+      });
+
+      if (itemsPayload.length === 0) {
+        showToast('Pilih menu yang valid.', 'error');
+        return;
+      }
+
+      closeModal('manualOrderModal');
+
+      if (isDemoMode || !supabaseClient) {
+        const newOrderId = appState.orders.length + 501;
+        appState.orders.unshift({
+          id: newOrderId,
+          user_id: currentUser?.id || 'admin-manual',
+          customer_name,
+          phone,
+          address,
+          notes,
+          payment_method,
+          delivery_method,
+          subtotal,
+          discount: 0,
+          delivery_fee: 0,
+          total: subtotal,
+          promo_code: null,
+          order_status: 'Diproses',
+          payment_status: payment_method === 'COD' ? 'Menunggu' : 'Dibayar',
+          created_at: new Date().toISOString(),
+          order_items: orderItemsSummary
+        });
+        renderAdminOrders();
+        showToast(`Pesanan manual #${newOrderId} berhasil ditambahkan!`, 'success');
+        return;
+      }
+
+      try {
+        const { data: orderId, error } = await supabaseClient.rpc('checkout_order', {
+          p_items: itemsPayload,
+          p_customer_name: customer_name,
+          p_phone: phone,
+          p_address: address,
+          p_notes: notes || null,
+          p_payment_method: payment_method,
+          p_delivery_method: delivery_method,
+          p_promo_code: null
+        });
+
+        if (error) throw error;
+        await refreshAllData();
+        showToast(`Pesanan manual #${orderId} berhasil dicatat ke sistem!`, 'success');
+      } catch (err) {
+        showToast(err.message || 'Gagal menyimpan pesanan manual.', 'error');
       }
     }
 
